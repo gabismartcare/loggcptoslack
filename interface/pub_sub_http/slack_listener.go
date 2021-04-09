@@ -107,7 +107,16 @@ func extractPayload(logentry logging.LogEntry) (payload string, err error) {
 			if s, ok := data["url"]; ok {
 				payload += " " + s.(string)
 			}
-			return payload + " (" + string(msg) + ")", nil
+			if s, ok := data["log_message"]; ok {
+				payload = s.(string)
+			}
+			if s, ok := data["grpc_status_code"]; ok {
+				payload += " " + s.(string)
+			}
+			if payload == "" {
+				return " (" + string(msg) + ")", nil
+			}
+			return payload, nil
 		}
 		if payload == "" {
 			payload, err = extractRawMessage(logentry.ProtoPayload)
