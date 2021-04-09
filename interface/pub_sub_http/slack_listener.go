@@ -7,6 +7,7 @@ import (
 	"google.golang.org/api/logging/v2"
 	"io/ioutil"
 	"net/http"
+	"strings"
 
 	"github.com/gabismartcare/loggcptoslack/domain/model"
 	"github.com/gabismartcare/loggcptoslack/usecase"
@@ -49,10 +50,16 @@ func (s SlackListener) ServeHTTP(writer http.ResponseWriter, request *http.Reque
 		return
 	}
 
+	if shouldIgnore(logentry) {
+		return
+	}
+
 	service := ""
 	if logentry.Resource != nil && len(logentry.Resource.Labels) > 0 {
 		if job, ok := logentry.Resource.Labels["job_id"]; ok {
 			service = job
+		} else if method, ok := logentry.Resource.Labels["method"]; ok {
+			service = method
 		} else {
 			service = logentry.LogName
 		}
@@ -68,13 +75,17 @@ func (s SlackListener) ServeHTTP(writer http.ResponseWriter, request *http.Reque
 		icon = ":large_yellow_circle:"
 	}
 	if err := s.slackUseCase.SendMessageToSlack(model.SimpleSlackRequest{
-		Text:      fmt.Sprintf("%s : GPC service %s %s, ", logentry.Severity, service, payload),
+		Text:      fmt.Sprintf("%s : GCP service %s %s, ", logentry.Severity, service, payload),
 		IconEmoji: icon,
 	}); err != nil {
 		writer.WriteHeader(500)
 		_, _ = writer.Write([]byte(err.Error()))
 		return
 	}
+}
+
+func shouldIgnore(logentry logging.LogEntry) bool {
+	return logentry.HttpRequest != nil && strings.HasSuffix(logentry.LogName, "endpoints_log") && logentry.HttpRequest.Status < 404
 }
 
 func extractPayload(logentry logging.LogEntry) (payload string, err error) {
