@@ -60,6 +60,8 @@ func (s SlackListener) ServeHTTP(writer http.ResponseWriter, request *http.Reque
 			service = job
 		} else if method, ok := logentry.Resource.Labels["method"]; ok {
 			service = method
+		} else if conf, ok := logentry.Resource.Labels["configuration_name"]; ok {
+			service = conf
 		} else {
 			service = logentry.LogName
 		}
@@ -91,7 +93,7 @@ func shouldIgnore(logentry logging.LogEntry) bool {
 func extractPayload(logentry logging.LogEntry) (payload string, err error) {
 	if logentry.HttpRequest != nil && logentry.HttpRequest.Status != 0 {
 		request := logentry.HttpRequest
-		payload = fmt.Sprintf("Error when calling \n>%s %s (Status %d) (User-Agent : %s) ", request.RequestMethod, request.RequestUrl, request.Status, request.UserAgent)
+		payload = fmt.Sprintf("Error when calling \n`%s %s`\n (Status %d) (User-Agent : %s) ", request.RequestMethod, request.RequestUrl, request.Status, request.UserAgent)
 	} else {
 		payload = logentry.TextPayload
 		if payload == "" {
