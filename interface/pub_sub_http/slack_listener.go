@@ -89,34 +89,39 @@ func shouldIgnore(logentry logging.LogEntry) bool {
 }
 
 func extractPayload(logentry logging.LogEntry) (payload string, err error) {
-	payload = logentry.TextPayload
-	if payload == "" {
-		msg, err := logentry.JsonPayload.MarshalJSON()
-		if err != nil {
-			return payload, err
-		}
-		if len(msg) > 0 {
-			var data map[string]interface{}
-			err := json.Unmarshal(msg, &data)
+	if logentry.HttpRequest != nil && logentry.HttpRequest.Status != 0 {
+		request := logentry.HttpRequest
+		payload = fmt.Sprintf("Error when calling %s %s (Status %d) (User-Agent : %s) ", request.RequestMethod, request.RequestUrl, request.Status, request.UserAgent)
+	} else {
+		payload = logentry.TextPayload
+		if payload == "" {
+			msg, err := logentry.JsonPayload.MarshalJSON()
 			if err != nil {
-				return string(msg), err
+				return payload, err
 			}
-			if s, ok := data["jobName"]; ok {
-				payload = s.(string)
+			if len(msg) > 0 {
+				var data map[string]interface{}
+				err := json.Unmarshal(msg, &data)
+				if err != nil {
+					return string(msg), err
+				}
+				if s, ok := data["jobName"]; ok {
+					payload = s.(string)
+				}
+				if s, ok := data["url"]; ok {
+					payload += " " + s.(string)
+				}
+				if s, ok := data["log_message"]; ok {
+					payload = s.(string)
+				}
+				if s, ok := data["grpc_status_code"]; ok {
+					payload += " " + s.(string)
+				}
+				if payload == "" {
+					return " (" + string(msg) + ")", nil
+				}
+				return payload, nil
 			}
-			if s, ok := data["url"]; ok {
-				payload += " " + s.(string)
-			}
-			if s, ok := data["log_message"]; ok {
-				payload = s.(string)
-			}
-			if s, ok := data["grpc_status_code"]; ok {
-				payload += " " + s.(string)
-			}
-			if payload == "" {
-				return " (" + string(msg) + ")", nil
-			}
-			return payload, nil
 		}
 		if payload == "" {
 			payload, err = extractRawMessage(logentry.ProtoPayload)
